@@ -31,13 +31,7 @@
       box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); z-index: 50;
     }
     .dropdown-box::before {
-      content: '';
-      position: absolute;
-      top: -12px;
-      left: 0;
-      right: 0;
-      height: 12px;
-      background: transparent;
+      content: ''; position: absolute; top: -12px; left: 0; right: 0; height: 12px; background: transparent;
     }
     .dropdown-container:hover .dropdown-box { display: block; }
     
@@ -46,6 +40,22 @@
       border-top-color: #10b981; border-radius: 50%; animation: spin 0.5s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* CSS Running Text / Marquee */
+    .marquee-container {
+      display: flex; overflow: hidden; user-select: none; gap: 1rem;
+    }
+    .marquee-content {
+      flex-shrink: 0; display: flex; justify-content: space-around; min-width: 100%; gap: 1.5rem;
+      animation: scroll 250s linear infinite;
+    }
+    .marquee-container:hover .marquee-content {
+      animation-play-state: paused;
+    }
+    @keyframes scroll {
+      from { transform: translateX(0); }
+      to { transform: translateX(-100%); }
+    }
   </style>
 </head>
 <body class="bg-[#0b0f19] text-slate-100 font-sans antialiased">
@@ -62,11 +72,10 @@
 
     <div>
       <!-- Topbar Navbar Header -->
-      <header class="w-full bg-[#111827] border border-[#1f2937] rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 mb-6 shadow-xl">
+      <header class="w-full bg-[#111827] border border-[#1f2937] rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 mb-4 shadow-xl">
         <div class="flex items-center space-x-3 cursor-pointer w-full md:w-auto justify-between md:justify-start" onclick="loadPage('ROOT')">
           <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-xl bg-orange-500
- flex items-center justify-center text-white font-extrabold shadow-lg">
+            <div class="w-10 h-10 rounded-xl bg-orange-500 flex items-center justify-center text-white font-extrabold shadow-lg">
               <i class="fab fa-bitcoin"></i>
             </div>
             <div>
@@ -101,6 +110,17 @@
           </button>
         </div>
       </header>
+
+      <!-- RUNNING TEXT CRYPTO (TOP 100 COINGECKO) -->
+      <div class="w-full bg-[#111827] border border-[#1f2937] rounded-xl px-4 py-2.5 mb-6 shadow-md flex items-center gap-3 overflow-hidden">
+        <div class="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/20 text-orange-400 text-[11px] font-extrabold px-2.5 py-1 rounded-lg shrink-0">
+          <i class="fas fa-chart-line"></i>
+          <span>TOP 100 CRYPTO</span>
+        </div>
+        <div class="marquee-container flex-1 text-xs" id="cryptoMarqueeWrapper">
+          <div class="text-slate-400 text-xs italic" id="cryptoTickerLoading">Memuat data pasar CoinGecko...</div>
+        </div>
+      </div>
 
       <!-- Main Navigation & Card Content -->
       <main class="space-y-6">
@@ -316,7 +336,7 @@
   </div>
 
   <script>
-    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyJO_DMmzhxzF9BALc6VBOcoQLEZO5PfI3_cHwiS3_2-7UNRJK4go3ZyvJ5xg1EDxqGRA/exec";
+    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwpjM0aBnmEhDsHwc2NewegfuN6QOgt8FV_EqDjbB_gXqjYGTyt2gv482QlqPFRwzuK/exec";
     
     let rootMenus = [];
     let usersList = [];
@@ -333,7 +353,51 @@
         }
       }
       fetchData();
+      fetchCryptoTicker();
     });
+
+    /* LOGIKA CRYPTO TICKER RUNNING TEXT (COINGECKO 100 COIN) */
+    async function fetchCryptoTicker() {
+      const wrapper = document.getElementById('cryptoMarqueeWrapper');
+      try {
+        const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false');
+        if (!res.ok) throw new Error("Status HTTP " + res.status);
+        const coins = await res.json();
+        
+        if (!coins || coins.length === 0) {
+          wrapper.innerHTML = `<span class="text-slate-500">Gagal memuat data koin.</span>`;
+          return;
+        }
+
+        const buildTickerHTML = () => coins.map(coin => {
+          const priceChange = coin.price_change_percentage_24h || 0;
+          const isPositive = priceChange >= 0;
+          const priceFormatted = coin.current_price >= 1 
+            ? `$${coin.current_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+            : `$${coin.current_price.toFixed(4)}`;
+
+          return `
+            <div class="inline-flex items-center space-x-1.5 whitespace-nowrap">
+              <img src="${coin.image}" alt="${coin.symbol}" class="w-4 h-4 rounded-full" loading="lazy">
+              <span class="font-extrabold text-slate-200 uppercase">${coin.symbol}</span>
+              <span class="text-slate-300 font-medium">${priceFormatted}</span>
+              <span class="${isPositive ? 'text-emerald-400' : 'text-rose-400'} font-bold flex items-center text-[10px]">
+                <i class="fas ${isPositive ? 'fa-caret-up' : 'fa-caret-down'} mr-0.5"></i>
+                ${Math.abs(priceChange).toFixed(2)}%
+              </span>
+            </div>
+          `;
+        }).join('');
+
+        // Duplikasi isi agar animasi infinite loop tanpa cela/jeda
+        wrapper.innerHTML = `
+          <div class="marquee-content">${buildTickerHTML()}</div>
+          <div class="marquee-content" aria-hidden="true">${buildTickerHTML()}</div>
+        `;
+      } catch (err) {
+        wrapper.innerHTML = `<span class="text-rose-400 text-xs">Gagal mengambil data CoinGecko (Batas Rate Limit API).</span>`;
+      }
+    }
 
     function showGlobalSpinner(msg = "Memproses...") {
       document.getElementById('globalSpinnerMessage').innerText = msg;
@@ -346,6 +410,7 @@
     function syncDataDataManual() {
       showGlobalSpinner("Menyinkronkan data...");
       clearAppCache();
+      fetchCryptoTicker();
       fetchData(true).then(() => {
         hideGlobalSpinner();
       });
@@ -466,50 +531,40 @@
 
     function handleSearch(keyword) {
       const clearBtn = document.getElementById('clearSearchBtn');
-      const grid = document.getElementById('cardsGrid');
-      const query = keyword.trim().toLowerCase();
+      if (keyword.length > 0) clearBtn.classList.remove('hidden');
+      else clearBtn.classList.add('hidden');
 
-      if (query !== '') {
-        clearBtn.classList.remove('hidden');
-        const allItems = flattenMenus(rootMenus);
-        const filtered = allItems.filter(item => 
-          item.title.toLowerCase().includes(query) || 
-          (item.description && item.description.toLowerCase().includes(query))
-        );
-
-        document.getElementById('bannerTitle').innerText = `Hasil Pencarian: "${keyword}"`;
-        document.getElementById('bannerDesc').innerText = `Ditemukan ${filtered.length} menu yang cocok.`;
-
-        grid.innerHTML = filtered.length > 0
-          ? filtered.map(item => renderItemCard(item)).join('')
-          : `<div class="col-span-full py-12 text-center text-xs text-slate-500 bg-[#111827] rounded-2xl border border-[#1f2937]">Menu tidak ditemukan.</div>`;
-      } else {
-        clearBtn.classList.add('hidden');
-        loadPage(activePageId);
-      }
+      const flatMenus = getAllFlatMenus(rootMenus);
+      const filtered = flatMenus.filter(m => 
+        m.title.toLowerCase().includes(keyword.toLowerCase()) || 
+        m.description.toLowerCase().includes(keyword.toLowerCase()) ||
+        m.category.toLowerCase().includes(keyword.toLowerCase())
+      );
+      renderCards(filtered, true);
     }
 
     function clearSearch() {
-      document.getElementById('searchInput').value = '';
-      handleSearch('');
+      document.getElementById('searchInput').value = "";
+      document.getElementById('clearSearchBtn').classList.add('hidden');
+      loadPage(activePageId);
     }
 
-    function flattenMenus(list) {
-      let result = [];
-      list.forEach(item => {
-        result.push(item);
-        if (item.submenus && item.submenus.length > 0) {
-          result = result.concat(flattenMenus(item.submenus));
+    function getAllFlatMenus(menus) {
+      let list = [];
+      menus.forEach(m => {
+        list.push(m);
+        if (m.submenus && m.submenus.length > 0) {
+          list = list.concat(getAllFlatMenus(m.submenus));
         }
       });
-      return result;
+      return list;
     }
 
-    function findItemRecursive(list, id) {
-      for (let item of list) {
-        if (item.id === id) return item;
-        if (item.submenus && item.submenus.length > 0) {
-          const found = findItemRecursive(item.submenus, id);
+    function findMenuById(menus, id) {
+      for (const m of menus) {
+        if (m.id === id) return m;
+        if (m.submenus && m.submenus.length > 0) {
+          const found = findMenuById(m.submenus, id);
           if (found) return found;
         }
       }
@@ -518,134 +573,175 @@
 
     function loadPage(pageId) {
       activePageId = pageId;
-      const grid = document.getElementById('cardsGrid');
-      document.getElementById('searchInput').value = '';
-      document.getElementById('clearSearchBtn').classList.add('hidden');
+      const breadcrumb = document.getElementById('breadcrumbBar');
       
-      let displayItems = [];
-      if (pageId === "ROOT") {
-        displayItems = rootMenus;
-        document.getElementById('bannerTitle').innerText = "Tautan tool crypto";
+      if (pageId === 'ROOT') {
+        breadcrumb.innerHTML = `
+          <button onclick="loadPage('ROOT')" class="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl text-xs font-bold flex items-center gap-1.5">
+            <i class="fas fa-house text-[10px]"></i> Beranda Utama
+          </button>
+        `;
+        document.getElementById('bannerTitle').innerText = "Direktori Sistem & Tautan";
         document.getElementById('bannerDesc').innerText = "Silakan pilih menu di atas atau jelajahi modul di bawah ini.";
+        renderCards(rootMenus);
       } else {
-        const item = findItemRecursive(rootMenus, pageId);
-        if (item) {
-          displayItems = item.submenus || [];
-          document.getElementById('bannerTitle').innerText = item.title;
-          document.getElementById('bannerDesc').innerText = item.description || "Daftar modul pendukung.";
+        const menu = findMenuById(rootMenus, pageId);
+        if (menu) {
+          breadcrumb.innerHTML = `
+            <button onclick="loadPage('ROOT')" class="px-3 py-1.5 bg-slate-800 text-slate-400 border border-[#1f2937] rounded-xl text-xs font-semibold flex items-center gap-1.5 hover:text-white">
+              <i class="fas fa-house text-[10px]"></i> Beranda
+            </button>
+            <span class="text-slate-600 text-xs">/</span>
+            <span class="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl text-xs font-bold flex items-center gap-1.5">
+              <i class="${menu.iconClass || 'fas fa-folder'} text-[10px]"></i> ${menu.title}
+            </span>
+          `;
+          document.getElementById('bannerTitle').innerText = menu.title;
+          document.getElementById('bannerDesc').innerText = menu.description || "Sub-direktori halaman portal.";
+          renderCards(menu.submenus || []);
         }
       }
-
-      grid.innerHTML = displayItems.length > 0 
-        ? displayItems.map(item => renderItemCard(item)).join('')
-        : `<div class="col-span-full py-12 text-center text-xs text-slate-500 bg-[#111827] rounded-2xl border border-[#1f2937]">Belum ada modul.</div>`;
     }
 
-    function renderItemCard(item) {
-      const canEdit = currentUser && (currentUser.role === 'ADMIN' || item.ownerUserId === currentUser.userId);
-      const isFolder = item.type === 'folder' || (item.submenus && item.submenus.length > 0);
+    function handleCardAction(menuId) {
+      const menu = findMenuById(rootMenus, menuId);
+      if (!menu) return;
 
-      let visBadge = `<span class="bg-blue-500/20 text-blue-300 border-blue-500/30 text-[9px] font-bold px-2 py-0.5 rounded border">UMUM</span>`;
-      if (item.visibility === 'PRIVASI') {
-        visBadge = `<span class="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[9px] font-bold px-2 py-0.5 rounded border"><i class="fas fa-lock text-[8px] mr-1"></i>PRIVASI</span>`;
-      } else if (item.visibility === 'PRIVASI_ADMIN') {
-        visBadge = `<span class="bg-purple-500/20 text-purple-300 border-purple-500/30 text-[9px] font-bold px-2 py-0.5 rounded border"><i class="fas fa-user-shield text-[8px] mr-1"></i>PRIVASI & ADMIN</span>`;
+      if (menu.type === 'folder' || (menu.submenus && menu.submenus.length > 0)) {
+        loadPage(menu.id);
+      } else if (menu.targetUrl && menu.targetUrl !== '#') {
+        window.open(menu.targetUrl, '_blank');
+      }
+    }
+
+    function renderCards(menus, isSearch = false) {
+      const grid = document.getElementById('cardsGrid');
+      if (!menus || menus.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full py-12 text-center text-slate-500 text-xs bg-[#111827] border border-[#1f2937] rounded-2xl">
+            Tidak ada modul / menu yang tersedia di sub-halaman ini.
+          </div>
+        `;
+        return;
       }
 
-      return `
-        <div class="bg-[#111827] border border-[#1f2937] hover:border-emerald-500/50 rounded-2xl p-4 flex flex-col justify-between shadow-lg transition-all group">
-          <div>
-            <div class="flex items-center justify-between mb-4">
-              <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
-                <i class="${item.iconClass || 'fas fa-link'} text-base"></i>
-              </div>
+      grid.innerHTML = menus.map(m => {
+        const canEdit = currentUser && (currentUser.role === 'ADMIN' || currentUser.userId === m.ownerUserId);
+        const isFolder = m.type === 'folder' || (m.submenus && m.submenus.length > 0);
 
-              <div class="flex items-center space-x-1">
-                ${canEdit ? `
-                  <button onclick="openCrudModal(null, '${item.id}')" class="px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold hover:bg-emerald-500/30">+ Sub</button>
-                  <button onclick="editMenu(event, '${item.id}')" class="w-6 h-6 rounded bg-amber-500/20 text-amber-300 text-[10px] flex items-center justify-center hover:bg-amber-500/30" title="Update / Edit Menu"><i class="fas fa-pen"></i></button>
-                  <button onclick="deleteMenu(event, '${item.id}')" class="w-6 h-6 rounded bg-red-500/20 text-red-300 text-[10px] flex items-center justify-center hover:bg-red-500/30" title="Hapus Menu"><i class="fas fa-trash"></i></button>
-                ` : ''}
+        return `
+          <div class="group bg-[#111827] hover:bg-[#161f32] border border-[#1f2937] hover:border-emerald-500/40 rounded-2xl p-5 transition-all duration-200 shadow-xl flex flex-col justify-between relative overflow-hidden">
+            <div>
+              <div class="flex items-center justify-between mb-3">
+                <div class="w-10 h-10 rounded-xl bg-slate-900 border border-[#1f2937] flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                  <i class="${m.iconClass || 'fas fa-link'} text-base"></i>
+                </div>
+                <div class="flex items-center space-x-1">
+                  <span class="text-[9px] font-extrabold px-2 py-0.5 rounded-md bg-slate-900 text-slate-400 border border-[#1f2937] uppercase">${m.category || 'GENERAL'}</span>
+                  ${canEdit ? `
+                    <button onclick="event.stopPropagation(); openCrudModal('${m.id}')" class="text-slate-500 hover:text-amber-400 p-1.5 text-xs"><i class="fas fa-pen"></i></button>
+                    <button onclick="event.stopPropagation(); executeDeleteMenu('${m.id}')" class="text-slate-500 hover:text-rose-400 p-1.5 text-xs"><i class="fas fa-trash"></i></button>
+                  ` : ''}
+                </div>
               </div>
+              
+              <h3 class="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors mb-1.5">${m.title}</h3>
+              <p class="text-xs text-slate-400 line-clamp-2 leading-relaxed mb-4">${m.description || 'Tidak ada deskripsi singkat.'}</p>
             </div>
 
-            <h4 class="text-sm font-bold text-white">${item.title}</h4>
-            <p class="text-xs text-slate-400 mt-1 line-clamp-2">${item.description || ''}</p>
-            
-            <div class="mt-3 flex items-center gap-2 flex-wrap">
-              ${visBadge}
-              ${item.category ? `<span class="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-[9px] font-bold px-2 py-0.5 rounded border"><i class="fas fa-tag text-[8px] mr-1"></i>${item.category}</span>` : ''}
-              <span class="text-[9px] font-semibold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-[#1f2937]">
-                Owner: ${item.ownerUserId}
-              </span>
+            <div class="pt-3 border-t border-[#1f2937]/60 flex items-center justify-between text-xs font-semibold">
+              <span class="text-[10px] text-slate-500 font-mono">${m.visibility}</span>
+              <button onclick="handleCardAction('${m.id}')" class="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 text-xs">
+                <span>${isFolder ? 'Buka Sub' : 'Kunjungi'}</span>
+                <i class="fas ${isFolder ? 'fa-folder-open' : 'fa-arrow-up-right-from-square'} text-[10px]"></i>
+              </button>
             </div>
           </div>
-
-          <div class="mt-5 pt-3 border-t border-[#1f2937] flex items-center justify-between">
-            <button onclick="handleCardAction('${item.id}')" class="text-xs font-bold text-emerald-400 flex items-center gap-1 hover:underline">
-              <span>${isFolder ? 'Buka Halaman' : 'Akses Tautan'}</span>
-              <i class="fas fa-arrow-right text-[10px]"></i>
-            </button>
-          </div>
-        </div>
-      `;
+        `;
+      }).join('');
     }
 
-    function handleCardAction(id) {
-      const item = findItemRecursive(rootMenus, id);
-      if (!item) return;
-
-      if (item.submenus && item.submenus.length > 0) {
-        loadPage(item.id);
-      } else if (item.targetUrl && item.targetUrl !== '#') {
-        window.open(item.targetUrl, '_blank');
+    /* LOGIKA AUTH & MODAL */
+    function handleAuthClick() {
+      if (currentUser) {
+        if (confirm("Apakah Anda yakin ingin logout?")) {
+          currentUser = null;
+          localStorage.removeItem('portal_currentUser');
+          clearAppCache();
+          fetchData(true);
+        }
       } else {
-        alert(`Menu: ${item.title}\nTautan belum dikonfigurasi.`);
+        document.getElementById('loginModal').classList.remove('hidden');
       }
     }
 
-    /* CRUD MODAL FOR MENU (TAMBAH / UPDATE) */
-    function openCrudModal(menuData = null, parentId = '') {
-      document.getElementById('formId').value = menuData ? menuData.id : '';
-      document.getElementById('formParentId').value = menuData ? menuData.parentId : parentId;
-      document.getElementById('formTitle').value = menuData ? menuData.title : '';
-      document.getElementById('formCategory').value = menuData ? menuData.category : '';
-      document.getElementById('formVisibility').value = menuData ? menuData.visibility : 'UMUM';
-      document.getElementById('formType').value = menuData ? menuData.type : 'link';
-      document.getElementById('formIcon').value = menuData ? menuData.iconClass : 'fas fa-link';
-      document.getElementById('formUrl').value = menuData ? menuData.targetUrl : '#';
-      document.getElementById('formDesc').value = menuData ? menuData.description : '';
+    function closeLoginModal() { document.getElementById('loginModal').classList.add('hidden'); }
 
-      const titleLabel = document.getElementById('crudModalTitle');
-      const submitBtn = document.getElementById('submitMenuBtn');
-
-      if (menuData) {
-        titleLabel.innerText = "Update / Edit Menu";
-        submitBtn.innerText = "Update Data";
-      } else {
-        titleLabel.innerText = parentId ? "Tambah Sub Menu" : "Tambah Menu Utama";
-        submitBtn.innerText = "Simpan Data";
+    async function executeLogin(e) {
+      e.preventDefault();
+      const u = document.getElementById('loginUser').value;
+      const p = document.getElementById('loginPass').value;
+      
+      showGlobalSpinner("Otentikasi Akun...");
+      try {
+        const res = await fetch(GAS_API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'login', username: u, password: p })
+        });
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+          currentUser = data.user;
+          localStorage.setItem('portal_currentUser', JSON.stringify(currentUser));
+          closeLoginModal();
+          clearAppCache();
+          fetchData(true);
+        } else {
+          alert(data.message);
+        }
+      } catch (err) {
+        alert("Gagal memproses Login.");
+      } finally {
+        hideGlobalSpinner();
       }
+    }
 
+    /* LOGIKA CRUD MENU */
+    function openCrudModal(menuId = null, parentId = "") {
       document.getElementById('crudModal').classList.remove('hidden');
-    }
+      document.getElementById('formId').value = "";
+      document.getElementById('formParentId').value = parentId;
+      document.getElementById('formTitle').value = "";
+      document.getElementById('formCategory').value = "";
+      document.getElementById('formVisibility').value = "UMUM";
+      document.getElementById('formType').value = "link";
+      document.getElementById('formIcon').value = "fas fa-link";
+      document.getElementById('formUrl').value = "#";
+      document.getElementById('formDesc').value = "";
 
-    function closeCrudModal() {
-      document.getElementById('crudModal').classList.add('hidden');
-    }
-
-    function editMenu(e, id) {
-      e.stopPropagation();
-      const item = findItemRecursive(rootMenus, id);
-      if (item) {
-        openCrudModal(item);
+      if (menuId) {
+        const menu = findMenuById(rootMenus, menuId);
+        if (menu) {
+          document.getElementById('crudModalTitle').innerText = "Edit Modul Menu";
+          document.getElementById('formId').value = menu.id;
+          document.getElementById('formParentId').value = menu.parentId || "";
+          document.getElementById('formTitle').value = menu.title;
+          document.getElementById('formCategory').value = menu.category;
+          document.getElementById('formVisibility').value = menu.visibility;
+          document.getElementById('formType').value = menu.type;
+          document.getElementById('formIcon').value = menu.iconClass;
+          document.getElementById('formUrl').value = menu.targetUrl;
+          document.getElementById('formDesc').value = menu.description;
+        }
+      } else {
+        document.getElementById('crudModalTitle').innerText = "Tambah Modul Menu Baru";
       }
     }
+
+    function closeCrudModal() { document.getElementById('crudModal').classList.add('hidden'); }
 
     async function executeSaveMenu(e) {
       e.preventDefault();
-      showGlobalSpinner("Menyimpan perubahan...");
-
       const payload = {
         action: 'saveMenu',
         id: document.getElementById('formId').value,
@@ -657,116 +753,68 @@
         iconClass: document.getElementById('formIcon').value,
         targetUrl: document.getElementById('formUrl').value,
         description: document.getElementById('formDesc').value,
-        ownerUserId: currentUser ? currentUser.userId : "PUBLIC"
+        ownerUserId: currentUser ? currentUser.userId : 'PUBLIC'
       };
 
+      showGlobalSpinner("Menyimpan data...");
       try {
         const res = await fetch(GAS_API_URL, {
           method: 'POST',
           body: JSON.stringify(payload)
         });
-        const json = await res.json();
-
-        if (json.status === 'success') {
+        const data = await res.json();
+        
+        if (data.status === 'success') {
           closeCrudModal();
           clearAppCache();
-          await fetchData(true);
+          fetchData(true);
         } else {
-          alert("Gagal menyimpan data: " + json.message);
+          alert("Gagal menyimpan: " + data.message);
         }
       } catch (err) {
-        alert("Terjadi kesalahan sistem saat menyimpan menu.");
+        alert("Gagal mengirimkan data.");
       } finally {
         hideGlobalSpinner();
       }
     }
 
-    async function deleteMenu(e, id) {
-      e.stopPropagation();
-      if (!confirm("Apakah Anda yakin ingin menghapus menu ini?")) return;
-
-      showGlobalSpinner("Meninggalkan data menu...");
+    async function executeDeleteMenu(id) {
+      if (!confirm("Hapus menu ini beserta seluruh akses terkait?")) return;
+      showGlobalSpinner("Menghapus data...");
       try {
         const res = await fetch(GAS_API_URL, {
           method: 'POST',
           body: JSON.stringify({ action: 'deleteMenu', id: id })
         });
-        const json = await res.json();
-
-        if (json.status === 'success') {
+        const data = await res.json();
+        if (data.status === 'success') {
           clearAppCache();
-          await fetchData(true);
+          fetchData(true);
         } else {
-          alert("Gagal menghapus: " + json.message);
+          alert(data.message);
         }
       } catch (err) {
-        alert("Terjadi kesalahan sistem saat menghapus data.");
+        alert("Gagal menghapus.");
       } finally {
         hideGlobalSpinner();
       }
     }
 
-    /* AUTHENTICATION */
-    function handleAuthClick() {
-      if (currentUser) {
-        currentUser = null;
-        localStorage.removeItem('portal_currentUser');
-        clearAppCache();
-        fetchData(true);
-      } else {
-        document.getElementById('loginModal').classList.remove('hidden');
-      }
-    }
-    function closeLoginModal() { 
-      document.getElementById('loginModal').classList.add('hidden'); 
-    }
-
-    async function executeLogin(e) {
-      e.preventDefault();
-      showGlobalSpinner("Verifikasi Autentikasi...");
-
-      const u = document.getElementById('loginUser').value;
-      const p = document.getElementById('loginPass').value;
-
-      try {
-        const res = await fetch(GAS_API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: 'login', username: u, password: p })
-        });
-        const json = await res.json();
-
-        if (json.status === 'success') {
-          currentUser = json.user;
-          localStorage.setItem('portal_currentUser', JSON.stringify(currentUser));
-          closeLoginModal();
-          clearAppCache();
-          await fetchData(true);
-        } else {
-          alert("Login gagal: " + json.message);
-        }
-      } catch (err) {
-        alert("Terjadi kesalahan jaringan/autentikasi.");
-      } finally {
-        hideGlobalSpinner();
-      }
-    }
-
-    /* USER MANAGEMENT (ADMIN ONLY) */
+    /* LOGIKA USER MANAGEMENT (ADMIN ONLY) */
     async function openUserManagementModal() {
-      showGlobalSpinner("Memuat data user...");
+      document.getElementById('userManagementModal').classList.remove('hidden');
+      showGlobalSpinner("Memuat daftar user...");
       try {
         const res = await fetch(`${GAS_API_URL}?action=getUsers&_t=${Date.now()}`);
-        const json = await res.json();
-
-        if (json.status === 'success') {
-          usersList = json.data;
+        const data = await res.json();
+        if (data.status === 'success') {
+          usersList = data.data;
           renderUserTable();
-          document.getElementById('userManagementModal').classList.remove('hidden');
         } else {
-          alert("Gagal mengambil data user.");
+          alert("Gagal memuat pengguna.");
         }
-      } catch (err) {
-        alert("Gagal terkoneksi dengan API User.");
+      } catch (e) {
+        alert("Gagal koneksi server.");
       } finally {
         hideGlobalSpinner();
       }
@@ -779,58 +827,49 @@
     function renderUserTable() {
       const tbody = document.getElementById('userTableBody');
       tbody.innerHTML = usersList.map(u => `
-        <tr class="hover:bg-slate-900/50">
-          <td class="p-3 font-mono font-bold text-slate-300">${u.userId}</td>
-          <td class="p-3 text-slate-200">${u.username}</td>
+        <tr class="hover:bg-slate-800/50">
+          <td class="p-3 font-mono text-emerald-400 font-bold">${u.userId}</td>
+          <td class="p-3 font-semibold text-white">${u.username}</td>
           <td class="p-3 text-slate-300">${u.fullName}</td>
-          <td class="p-3">
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${u.role === 'ADMIN' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' : 'bg-slate-800 text-slate-400'}">
-              ${u.role}
-            </span>
-          </td>
-          <td class="p-3 text-center space-x-1">
-            <button onclick="editUser('${u.userId}')" class="px-2 py-1 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 rounded text-[10px] font-bold"><i class="fas fa-pen"></i></button>
-            <button onclick="deleteUser('${u.userId}')" class="px-2 py-1 bg-red-500/20 text-red-300 hover:bg-red-500/30 rounded text-[10px] font-bold"><i class="fas fa-trash"></i></button>
+          <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${u.role === 'ADMIN' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-slate-800 text-slate-400'}">${u.role}</span></td>
+          <td class="p-3 text-center space-x-2">
+            <button onclick="openUserFormModal('${u.userId}')" class="text-amber-400 hover:text-amber-300"><i class="fas fa-pen"></i></button>
+            <button onclick="executeDeleteUser('${u.userId}')" class="text-rose-400 hover:text-rose-300"><i class="fas fa-trash"></i></button>
           </td>
         </tr>
       `).join('');
     }
 
-    function openUserFormModal(userData = null) {
-      const idInput = document.getElementById('userFormId');
-      if (userData) {
-        document.getElementById('userFormTitle').innerText = "Edit Data User";
-        idInput.value = userData.userId;
-        idInput.readOnly = true;
-        document.getElementById('userFormUsername').value = userData.username;
-        document.getElementById('userFormPassword').value = userData.password;
-        document.getElementById('userFormFullName').value = userData.fullName;
-        document.getElementById('userFormRole').value = userData.role;
-      } else {
-        document.getElementById('userFormTitle').innerText = "Tambah User Baru";
-        idInput.value = "";
-        idInput.readOnly = false;
-        document.getElementById('userFormUsername').value = "";
-        document.getElementById('userFormPassword').value = "";
-        document.getElementById('userFormFullName').value = "";
-        document.getElementById('userFormRole').value = "USER_KHUSUS";
-      }
+    function openUserFormModal(userId = null) {
       document.getElementById('userFormModal').classList.remove('hidden');
+      document.getElementById('userFormId').readOnly = false;
+      document.getElementById('userFormId').value = "";
+      document.getElementById('userFormUsername').value = "";
+      document.getElementById('userFormPassword').value = "";
+      document.getElementById('userFormFullName').value = "";
+      document.getElementById('userFormRole').value = "USER_KHUSUS";
+      document.getElementById('userFormTitle').innerText = "Tambah User Baru";
+
+      if (userId) {
+        const u = usersList.find(item => item.userId === userId);
+        if (u) {
+          document.getElementById('userFormTitle').innerText = "Edit Data User";
+          document.getElementById('userFormId').value = u.userId;
+          document.getElementById('userFormId').readOnly = true;
+          document.getElementById('userFormUsername').value = u.username;
+          document.getElementById('userFormPassword').value = u.password;
+          document.getElementById('userFormFullName').value = u.fullName;
+          document.getElementById('userFormRole').value = u.role;
+        }
+      }
     }
 
     function closeUserFormModal() {
       document.getElementById('userFormModal').classList.add('hidden');
     }
 
-    function editUser(userId) {
-      const u = usersList.find(x => x.userId === userId);
-      if (u) openUserFormModal(u);
-    }
-
     async function executeSaveUser(e) {
       e.preventDefault();
-      showGlobalSpinner("Menyimpan user...");
-
       const payload = {
         action: 'saveUser',
         userId: document.getElementById('userFormId').value,
@@ -840,44 +879,42 @@
         role: document.getElementById('userFormRole').value
       };
 
+      showGlobalSpinner("Menyimpan user...");
       try {
         const res = await fetch(GAS_API_URL, {
           method: 'POST',
           body: JSON.stringify(payload)
         });
-        const json = await res.json();
-
-        if (json.status === 'success') {
+        const data = await res.json();
+        if (data.status === 'success') {
           closeUserFormModal();
           openUserManagementModal();
         } else {
-          alert("Gagal menyimpan user: " + json.message);
+          alert("Gagal: " + data.message);
         }
       } catch (err) {
-        alert("Kesalahan saat menyimpan data user.");
+        alert("Gagal menyimpan user.");
       } finally {
         hideGlobalSpinner();
       }
     }
 
-    async function deleteUser(userId) {
-      if (!confirm(`Hapus pengguna ID: ${userId}?`)) return;
-
-      showGlobalSpinner("Meninggalkan user...");
+    async function executeDeleteUser(userId) {
+      if (!confirm(`Hapus user ID "${userId}"?`)) return;
+      showGlobalSpinner("Menghapus user...");
       try {
         const res = await fetch(GAS_API_URL, {
           method: 'POST',
           body: JSON.stringify({ action: 'deleteUser', userId: userId })
         });
-        const json = await res.json();
-
-        if (json.status === 'success') {
+        const data = await res.json();
+        if (data.status === 'success') {
           openUserManagementModal();
         } else {
-          alert("Gagal hapus user: " + json.message);
+          alert(data.message);
         }
       } catch (err) {
-        alert("Kesalahan saat menghapus user.");
+        alert("Gagal menghapus user.");
       } finally {
         hideGlobalSpinner();
       }
