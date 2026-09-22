@@ -66,7 +66,7 @@
         <div class="flex items-center space-x-3 cursor-pointer w-full md:w-auto justify-between md:justify-start" onclick="loadPage('ROOT')">
           <div class="flex items-center space-x-3">
             <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-extrabold shadow-lg">
-              <i class="fa-solid fa-folder"></i>
+              <i class="fab fa-bitcoin"></i>
             </div>
             <div>
               <div class="flex items-center gap-2">
@@ -524,7 +524,7 @@
       let displayItems = [];
       if (pageId === "ROOT") {
         displayItems = rootMenus;
-        document.getElementById('bannerTitle').innerText = "Direktori & Tautan Sistem";
+        document.getElementById('bannerTitle').innerText = "Tautan tool crypto";
         document.getElementById('bannerDesc').innerText = "Silakan pilih menu di atas atau jelajahi modul di bawah ini.";
       } else {
         const item = findItemRecursive(rootMenus, pageId);
